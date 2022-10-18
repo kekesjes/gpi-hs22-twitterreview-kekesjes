@@ -142,8 +142,8 @@
   <bpmn:process id="Process_TwitterReview" name="Twitter-Review-Prozess" isExecutable="true">
     <bpmn:laneSet id="LaneSet_0ch647t">
       <bpmn:lane id="MitarbeiterLane" name="Mitarbeiter">
-        <bpmn:flowNodeRef>TweetUberarbeitenTask1</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>TweetEingereichtStartEvent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>TweetUberarbeitenTask1</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="AutomatischLane" name="Automatisch">
         <bpmn:flowNodeRef>ManuellePrufungErforderlichGateway</bpmn:flowNodeRef>
@@ -214,19 +214,6 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_14fz7kr" sourceRef="TweetAnfragePrufenTask1" targetRef="Gateway_0vwhwno" />
     <bpmn:sequenceFlow id="Flow_096xcdp" sourceRef="TweetUberarbeitenTask1" targetRef="Gateway_0gxn63i" />
-    <bpmn:task id="TweetAnfragePrufenTask1" name="Tweet-Anfrage prüfen">
-      <bpmn:extensionElements>
-        <camunda:inputOutput>
-          <camunda:outputParameter name="checkResult">accepted</camunda:outputParameter>
-        </camunda:inputOutput>
-      </bpmn:extensionElements>
-      <bpmn:incoming>JaSequenceFlow</bpmn:incoming>
-      <bpmn:outgoing>Flow_14fz7kr</bpmn:outgoing>
-    </bpmn:task>
-    <bpmn:task id="TweetUberarbeitenTask1" name="Tweet überarbeiten">
-      <bpmn:incoming>ZuUberarbeitenSequenceFlow1</bpmn:incoming>
-      <bpmn:outgoing>Flow_096xcdp</bpmn:outgoing>
-    </bpmn:task>
     <bpmn:task id="TweetSendenTask" name="Tweet senden">
       <bpmn:incoming>GenehmigtSequenceFlow</bpmn:incoming>
       <bpmn:outgoing>Flow_009rtmd</bpmn:outgoing>
@@ -239,8 +226,16 @@
       <bpmn:incoming>AbgelehntSequenceFlow</bpmn:incoming>
       <bpmn:outgoing>Flow_0bpyw1q</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:startEvent id="TweetEingereichtStartEvent" name="Tweet eingereicht" camunda:asyncAfter="true">
-      <bpmn:extensionElements />
+    <bpmn:startEvent id="TweetEingereichtStartEvent" name="Tweet eingereicht" camunda:asyncAfter="true" camunda:initiator="anfrageStellenderBenutzer">
+      <bpmn:extensionElements>
+        <camunda:formData businessKey="">
+          <camunda:formField id="tweetContent" label="Gewünschter Tweet" type="string" />
+        </camunda:formData>
+        <camunda:executionListener event="end">
+          <camunda:script scriptFormat="JavaScript">execution.setProcessBusinessKey("T-" +
+anfrageStellenderBenutzer + "-" + tweetContentShort );</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
       <bpmn:outgoing>Flow_09kfwsd</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:task id="BenutzerinformationenAuslesenTask" name="Benutzerinformationen auslesen">
@@ -263,6 +258,43 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ?
 
 </bpmn:script>
     </bpmn:scriptTask>
+    <bpmn:userTask id="TweetAnfragePrufenTask1" name="Tweet-Anfrage prüfen" camunda:asyncAfter="true" camunda:candidateGroups="komm">
+      <bpmn:extensionElements>
+        <camunda:formData>
+          <camunda:formField id="tweetContent" label="Eingereichter Tweet" type="string">
+            <camunda:properties />
+            <camunda:validation />
+          </camunda:formField>
+          <camunda:formField id="checkResultLocal" label="Prüfergebnis" type="enum">
+            <camunda:value id="accepted" name="Angenommen" />
+            <camunda:value id="rejected" name="Abgelehnt" />
+            <camunda:value id="revisable" name="Zur überarbeitung" />
+          </camunda:formField>
+          <camunda:formField id="checkResultComment" label="Begründung" type="string" />
+        </camunda:formData>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="checkResultLocal">accepted</camunda:inputParameter>
+          <camunda:outputParameter name="checkResult">${checkResultLocal}</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>JaSequenceFlow</bpmn:incoming>
+      <bpmn:outgoing>Flow_14fz7kr</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="TweetUberarbeitenTask1" name="Tweet überarbeiten" camunda:asyncAfter="true" camunda:assignee="${anfragestellenderBenutzer}">
+      <bpmn:extensionElements>
+        <camunda:formData>
+          <camunda:formField id="tweetContent" label="Eingereichter Tweet" type="string" />
+          <camunda:formField id="checkResultComment" label="Begründung" type="string">
+            <camunda:properties />
+          </camunda:formField>
+        </camunda:formData>
+        <camunda:inputOutput>
+          <camunda:outputParameter name="checkResult">manualCheckRequired</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>ZuUberarbeitenSequenceFlow1</bpmn:incoming>
+      <bpmn:outgoing>Flow_096xcdp</bpmn:outgoing>
+    </bpmn:userTask>
   </bpmn:process>
   <bpmn:error id="Error_0cztbkf" name="DuplicateError" errorCode="DuplicateTweet" />
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
@@ -488,12 +520,6 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ?
           <dc:Bounds x="1429" y="923" width="82" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_145nhwu_di" bpmnElement="TweetAnfragePrufenTask1">
-        <dc:Bounds x="783" y="1094" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_0puypjv_di" bpmnElement="TweetUberarbeitenTask1">
-        <dc:Bounds x="1144" y="713" width="100" height="80" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_0qtbo24_di" bpmnElement="TweetSendenTask">
         <dc:Bounds x="1144" y="974" width="100" height="80" />
       </bpmndi:BPMNShape>
@@ -514,6 +540,12 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ?
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_0gcw8mc_di" bpmnElement="TweetTextAutomatischPrufenTask">
         <dc:Bounds x="480" y="858" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1m7jzn7_di" bpmnElement="TweetAnfragePrufenTask1">
+        <dc:Bounds x="783" y="1094" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1jgkapm_di" bpmnElement="TweetUberarbeitenTask1">
+        <dc:Bounds x="1144" y="713" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_0pe345c_di" bpmnElement="Flow_0pe345c">
         <di:waypoint x="423" y="898" />
